@@ -21,8 +21,8 @@ args.HVG_list = torch.load(args.ckp)['HVG_list']
 args.gene_num = len(args.HVG_list)
 args_utils.set_random_seed(args.seed)
 args.label_str = ['label', 'tissue_label', 'cancer_label']
-
-test_PATH = "./data/"
+os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu_id)
+test_PATH = args.test_dir
 
 data_spl_files = []
 if data_spl_files==[]:
@@ -52,7 +52,7 @@ def plot_multiple_roc(loader, dataset_name=""):
         for data in loader:
             x = data[0].cuda().float()
             y = data[1].cuda().long()
-            logit = cancell_cap_model.predict_2(x)
+            logit = cancell_cap_model.infer(x)
             all_labels.extend(y.cpu().numpy())
             all_preds.extend(logit.softmax(1).cpu().numpy())
             all_binary_preds.extend(logit.argmax(1).cpu().numpy()) 
@@ -92,7 +92,7 @@ def plot_multiple_roc(loader, dataset_name=""):
 
 for data_spl_file in sorted(data_spl_files):
     print(f'test {data_spl_file}')
-    val_loader = dataloader.test_dataloader_gene_cell(args,data_spl_file)
+    val_loader = dataloader.test_dataloader(args,data_spl_file)
     for idx,loader_idx in enumerate(val_loader):
         plot_multiple_roc(val_loader[loader_idx], loader_idx)
 

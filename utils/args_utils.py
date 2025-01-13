@@ -64,7 +64,7 @@ def infer_args():
     """
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--num_classes', type=int, default=2, help="number of classes")
-    parser.add_argument('--val_dir', type=str, default='./data/exp1_external/', help="path for validating data")
+    parser.add_argument('--test_dir', type=str, default='./data/exp1_external/', help="path for validating data")
     parser.add_argument('--checkpoint', type=str,default='./ckpt/', help="output dir")
     parser.add_argument('--genelist_outname', type=str,default='gene_list.txt', help="genelist_outname")
     parser.add_argument('--logs_name', type=str,default='test_log', help="test_log")

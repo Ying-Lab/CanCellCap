@@ -101,7 +101,7 @@ def plot_multiple_roc(loader, dataset_name=""):
                     x = data[0].cuda().float()
                     y = data[1].cuda().long()
 
-                    logit = models[name].predict_2(x)
+                    logit = models[name].infer(x)
                     
                     # Collect predictions and labels
                     all_labels.extend(y.cpu().numpy())
