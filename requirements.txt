@@ -1,6 +1,6 @@
-# torch==1.13.1
-# torchvision==0.14.1
-# torchaudio==0.13.1
+torch==1.13.1
+torchvision==0.14.1
+torchaudio==0.13.1
 scikit-learn==1.4.1.post1
 pandas==2.2.2
 numpy==1.26.4
