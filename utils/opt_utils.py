@@ -189,7 +189,7 @@ def save_checkpoint(filename, alg, args):
         "model_dict": alg.cpu().state_dict(),
         "HVG_list": args.HVG_list
     }
-    torch.save(save_dict, os.path.join(args.output, filename))
+    torch.save(save_dict, os.path.join(args.checkpoint, filename))
 
 def normalize_matrix_counts(raw_df,HVG_list,target_sum=10000):
     """

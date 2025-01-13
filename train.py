@@ -9,7 +9,7 @@ from itertools import cycle, zip_longest
 from TISCH import *
 
 args = args_utils.get_args()
-os.makedirs(args.output,exist_ok=True)
+os.makedirs(args.checkpoint,exist_ok=True)
 args.num_tissue = len(TISCH1_tissue_map.keys())
 args.num_cancer_type = len(TISCH1_cancer_type_map.keys())
 args.label_str = ['label', 'tissue_label', 'cancer_label']
@@ -28,9 +28,8 @@ args.data_spl_files = glob.glob(os.path.join(SPL_PATH,'*.parquet'))
 train_loaders = dataloader.train_dataloaders(args)
 val_loaders = dataloader.val_dataloaders(args)
 
-# i/o for log output
-f_loss_io = open( os.path.join(args.output,f'{args.logs_name}_loss.txt'),'w')
-f_val_io = open( os.path.join(args.output,f'{args.logs_name}_val.txt'),'w')
+f_loss_io = open( os.path.join(args.checkpoint,f'{args.logs_name}_loss.txt'),'w')
+f_val_io = open( os.path.join(args.checkpoint,f'{args.logs_name}_val.txt'),'w')
 [print(_,file=f_val_io,end='\t') if idx!=len(val_loaders)-1 else print(_,file=f_val_io,end='\n') for idx, _ in enumerate(val_loaders) ]
 
 if args.model_name == 'common_moe_mask':

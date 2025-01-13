@@ -30,7 +30,7 @@ def get_args():
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--train_dir', type=str, default='./data/train_data/', help="path for training data")
     parser.add_argument('--val_dir', type=str, default='./data/test_data/', help="path for validating data")
-    parser.add_argument('--output', type=str,default=f'test_{ date_str }', help="output dir")
+    parser.add_argument('--checkpoint', type=str,default=f'test_{ date_str }', help="checkpoint dir")
     parser.add_argument('--lr', type=float, default=1.3e-3, help="learning rate") 
     parser.add_argument('--num_classes', type=int, default=2, help="number of classes")
     parser.add_argument('--seed', type=int, default=0)
@@ -65,7 +65,7 @@ def infer_args():
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--num_classes', type=int, default=2, help="number of classes")
     parser.add_argument('--val_dir', type=str, default='./data/exp1_external/', help="path for validating data")
-    parser.add_argument('--output', type=str,default='./ckpt/', help="output dir")
+    parser.add_argument('--checkpoint', type=str,default='./ckpt/', help="output dir")
     parser.add_argument('--genelist_outname', type=str,default='gene_list.txt', help="genelist_outname")
     parser.add_argument('--logs_name', type=str,default='test_log', help="test_log")
     parser.add_argument('--seed', type=int, default=0)
@@ -73,7 +73,7 @@ def infer_args():
     parser.add_argument('--batch_size', type=int,default=256, help="batch_size")
     parser.add_argument('--gpu_id', type=int, default=1, help="device id to run")
     parser.add_argument('--model_name', type=str,default='common_moe_mask', help="model_name:common_mask\common_moe\moe_mask\common_moe_mask")
-    parser.add_argument('--test_drop_weight', type=float,default=0.05, help="weight of test drop ratio")
+    parser.add_argument('--test_drop_weight', type=float,default=0, help="weight of test drop ratio")
     args = parser.parse_args()
 
     return args

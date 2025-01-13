@@ -16,7 +16,7 @@ plt.rcParams['font.family'] = 'Times New Roman'
 
 args = args_utils.infer_args()
 
-args.ckp = os.path.join(args.output, 'my_model.pt')
+args.ckp = os.path.join(args.checkpoint, 'my_model.pt')
 args.HVG_list = torch.load(args.ckp)['HVG_list']
 args.gene_num = len(args.HVG_list)
 args_utils.set_random_seed(args.seed)
