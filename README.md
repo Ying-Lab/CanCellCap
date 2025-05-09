@@ -19,15 +19,15 @@ pip install -r requirements.txt
 
 ## Run 
 ### Data preparation
-The training and validation datasets can be download from:[]
+The training, validation, and testing datasets processed in this study are available for download from [Google Drive](https://drive.google.com/file/d/17OMeSGRECASnKn20cwwxdk9YRxarHYCH/view?usp=drive_link)
 
-All testing datasets can be downloaded from:[]
-
+To test CanCellCap, place parquet files in the *data* directory.
 ### Ckpt download
 A pretrained CanCellCap model is provided in this repository for immediate use. It allows users to quickly test the framework on their own scRNA-seq data without the need for extensive training.
 
-Detailed instructions for downloading and using the pretrained model can be found in the xxx[lianjie]
+Detailed instructions for downloading and using the pretrained model can be found in [Google Drive](https://drive.google.com/file/d/17OMeSGRECASnKn20cwwxdk9YRxarHYCH/view?usp=drive_link)
 
+After downloading, extract the compressed file and place *my_model.pt* into the *ckpt* directory.
 ### Test example
 ```
 python test.py --val_dir ./data --checkpoint ./ckpt/
