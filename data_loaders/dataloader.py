@@ -1,12 +1,15 @@
-import pandas as pd 
+import pandas as pd
+import modin.pandas as mpd
 import torch
 import os
 import glob
-from torch.utils.data import TensorDataset,DataLoader
+from torch.utils.data import Dataset,TensorDataset,DataLoader
 from TISCH import *
 import anndata
 import scanpy as sc
 import sys
+import numpy as np 
+import random
 
 def train_dataloaders(args,shuffle_state=True):
     """
@@ -40,7 +43,7 @@ def train_dataloaders(args,shuffle_state=True):
             raw_df = pd.read_csv(data_spl_file,index_col=0)
         else:
             continue
-
+        
         raw_df = pd.merge(gene_list,raw_df,how='left',left_index=True,right_index=True).fillna(0)
         raw_df = raw_df[~raw_df.index.duplicated()]
         raw_df = raw_df.loc[gene_list.index]
@@ -85,6 +88,7 @@ def val_dataloaders(args,shuffle_state=True):
     # TRAIN_GENE_LIST = os.path.join(args.output,args.genelist_outname)
     # gene_list = pd.read_csv(TRAIN_GENE_LIST,header=None,index_col=0)
     gene_list = pd.DataFrame(index=args.HVG_list)
+
     gene_list.index = gene_list.index.append(pd.Index(label_str))
     external_val_loader_dict = {}
     # data_spl_files = [os.path.join(SPL_PATH,"Bond.csv")]
@@ -99,7 +103,7 @@ def val_dataloaders(args,shuffle_state=True):
             raw_df = pd.read_csv(data_spl_file,index_col=0)
         else:
             continue
-        print(f"loading dataset: {data_spl_file}")
+        print(f"loading val dataset: {data_spl_file}")
         raw_df = pd.merge(gene_list,raw_df,how='left',left_index=True,right_index=True).fillna(0)
         raw_df = raw_df[~raw_df.index.duplicated()]
         raw_df = raw_df.loc[gene_list.index]
@@ -123,34 +127,54 @@ def val_dataloaders(args,shuffle_state=True):
 
     return external_val_loader_dict
     
+class myDataset(Dataset):
+    def __init__(self, X, Y, Y_tissue, Y_cancer_type, cellnames):
+        self.X = torch.from_numpy(X).float()
+        self.Y = torch.from_numpy(Y).float()
+        self.Y_tissue = torch.from_numpy(Y_tissue).float()
+        self.Y_cancer_type = torch.from_numpy(Y_cancer_type).float()
+        self.cellnames = cellnames  # list of str
 
+    def __len__(self):
+        return len(self.X)
 
-def test_dataloader(args, val_dataset, log=True, shuffle_state=False):
+    def __getitem__(self, idx):
+        return (
+            self.X[idx],
+            self.Y[idx],
+            self.Y_tissue[idx],
+            self.Y_cancer_type[idx],
+            self.cellnames[idx]
+        )
+
+def test_dataloader(args, val_dataset, log=False, shuffle_state=False):
     SPL_FILE = val_dataset
     batch_size = args.batch_size
 
     need_col_num=args.gene_num
     label_str = args.label_str
 
-    gene_list = pd.DataFrame(index=args.HVG_list)
-    gene_list.index = gene_list.index.append(pd.Index(label_str))
-    external_val_loader_dict = {}
+    gene_list = pd.DataFrame(index=args.HVG_list+label_str)
 
     if SPL_FILE.endswith('.parquet'):
         raw_df = pd.read_parquet(SPL_FILE) 
     elif SPL_FILE.endswith('.csv'):
         raw_df = pd.read_csv(SPL_FILE,index_col=0)
-
-    if 'label' not in raw_df.columns:
+    else:
+        print('Error file format.')
+        
+    print(raw_df.shape)
+    if 'label' not in raw_df.index:
         raw_df = raw_df.T
-    
-    if 'label' not in raw_df.columns:
+
+    if 'label' not in raw_df.index:
         print("Error: 'label' column is missing. Exiting program.")
         sys.exit(1)  
 
-    raw_df = raw_df.T
-    raw_data = raw_df[:-1]
+    raw_data = raw_df[:-1].fillna(0)
+    cell_name = raw_df.columns
     Y = raw_df.loc['label'].copy().to_numpy()
+    print(raw_df.loc['label'].value_counts())
 
     if log:
         adata = anndata.AnnData(X=raw_data.T)
@@ -164,16 +188,262 @@ def test_dataloader(args, val_dataset, log=True, shuffle_state=False):
     merge_df = merge_df[~merge_df.index.duplicated()]
     merge_df = merge_df.loc[gene_list.index]
     merge_df = merge_df.T
+    print(merge_df.shape)
+    X = merge_df.iloc[:,:need_col_num].to_numpy()
+    Y_tissue = merge_df.loc[:,'tissue_label'].copy().to_numpy()
+    Y_cancer_type = merge_df.loc[:,'cancer_label'].copy().to_numpy()
+    # val_set = TensorDataset(torch.from_numpy(X).float(),torch.from_numpy(Y).float(),torch.from_numpy(Y_tissue).float(),torch.from_numpy(Y_cancer_type).float())
+    val_set = myDataset(X,Y,Y_tissue,Y_cancer_type, cell_name)
+    val_loader = DataLoader(dataset=val_set,batch_size = batch_size,shuffle=shuffle_state,drop_last=False)
+
+    return val_loader
+
+
+def test_dataloader_mpd(args, val_dataset, log=False, shuffle_state=False):
+    SPL_FILE = val_dataset
+    batch_size = args.batch_size
+
+    need_col_num=args.gene_num
+    label_str = args.label_str
+
+    gene_list = mpd.DataFrame(index=args.HVG_list+label_str)
+
+    if SPL_FILE.endswith('.parquet'):
+        raw_df = mpd.read_parquet(SPL_FILE) 
+    elif SPL_FILE.endswith('.csv'):
+        raw_df = mpd.read_csv(SPL_FILE,index_col=0)
+    else:
+        print('Error file format.')
+        
+    print(raw_df.shape)
+    if 'label' not in raw_df.index:
+        raw_df = raw_df.T
+
+    if 'label' not in raw_df.index:
+        print("Error: 'label' column is missing. Exiting program.")
+        sys.exit(1)  
+
+    raw_data = raw_df[:-1].fillna(0)
+    cell_name = raw_df.columns
+    Y = raw_df.loc['label'].copy().to_numpy()
+    print(raw_df.loc['label'].value_counts())
+    
+    if log:
+        adata = anndata.AnnData(X=raw_data.T)
+        sc.pp.normalize_total(adata, target_sum=1e4)
+        sc.pp.log1p(adata)
+        log_df = mpd.DataFrame(adata.X.T, index=raw_data.index, columns=raw_data.columns)
+    else:
+        log_df = raw_data
+
+    merge_df = mpd.merge(gene_list,log_df,how='left',left_index=True,right_index=True).fillna(0)
+    merge_df = merge_df[~merge_df.index.duplicated()]
+    merge_df = merge_df.loc[gene_list.index]
+    merge_df = merge_df.T
 
     X = merge_df.iloc[:,:need_col_num].to_numpy()
     Y_tissue = merge_df.loc[:,'tissue_label'].copy().to_numpy()
     Y_cancer_type = merge_df.loc[:,'cancer_label'].copy().to_numpy()
-    merge_df = TensorDataset(torch.from_numpy(X).float(),torch.from_numpy(Y).float(),torch.from_numpy(Y_tissue).float(),torch.from_numpy(Y_cancer_type).float())
-    
-    val_set = merge_df
+    # val_set = TensorDataset(torch.from_numpy(X).float(),torch.from_numpy(Y).float(),torch.from_numpy(Y_tissue).float(),torch.from_numpy(Y_cancer_type).float())
+    val_set = myDataset(X,Y,Y_tissue,Y_cancer_type, cell_name)
     val_loader = DataLoader(dataset=val_set,batch_size = batch_size,shuffle=shuffle_state,drop_last=False)
-    external_val_loader_dict[os.path.basename(SPL_FILE).split('.')[0]] = val_loader
 
-    return external_val_loader_dict
+    return val_loader
 
 
+
+def test_dataloader_gene_knockout(args, val_dataset, log=False, shuffle_state=False, knockout_gene=""):
+    SPL_FILE = val_dataset
+    batch_size = args.batch_size
+
+    need_col_num = args.gene_num
+    label_str = args.label_str
+
+    gene_list = pd.DataFrame(index=args.HVG_list + label_str)
+
+    if SPL_FILE.endswith('.parquet'):
+        raw_df = pd.read_parquet(SPL_FILE)
+    elif SPL_FILE.endswith('.csv'):
+        raw_df = pd.read_csv(SPL_FILE, index_col=0)
+    else:
+        print('Error: Unsupported file format.')
+        sys.exit(1)
+
+    print(raw_df.shape)
+    if 'label' not in raw_df.index:
+        raw_df = raw_df.T
+
+    if 'label' not in raw_df.index:
+        print("Error: 'label' column is missing. Exiting program.")
+        sys.exit(1)
+
+    raw_data = raw_df[:-1].fillna(0)
+    cell_name = raw_df.columns
+    Y = raw_df.loc['label'].copy().to_numpy()
+    print(raw_df.loc['label'].value_counts())
+
+    if log:
+        adata = anndata.AnnData(X=raw_data.T)
+        sc.pp.normalize_total(adata, target_sum=1e4)
+        sc.pp.log1p(adata)
+        log_df = pd.DataFrame(adata.X.T, index=raw_data.index, columns=raw_data.columns)
+    else:
+        log_df = raw_data
+
+    merge_df = pd.merge(gene_list, log_df, how='left', left_index=True, right_index=True).fillna(0)
+    merge_df = merge_df[~merge_df.index.duplicated()]
+    merge_df = merge_df.loc[gene_list.index]
+    merge_df = merge_df.T
+
+
+    if knockout_gene:
+        if knockout_gene in args.HVG_list:
+            print(f"Knocking out gene: {knockout_gene}")
+            shuffled_values = merge_df[knockout_gene].values.copy()
+            np.random.shuffle(shuffled_values)
+            merge_df[knockout_gene] = shuffled_values
+        else:
+            print(f"Warning: Gene '{knockout_gene}' not found in feature list. Skipping knock-out.")
+
+
+    X = merge_df.iloc[:, :need_col_num].to_numpy()
+
+    Y_tissue = merge_df.loc[:, 'tissue_label'].copy().to_numpy()
+    Y_cancer_type = merge_df.loc[:, 'cancer_label'].copy().to_numpy()
+
+    val_set = myDataset(X,Y,Y_tissue,Y_cancer_type, cell_name)
+    val_loader = DataLoader(dataset=val_set, batch_size=batch_size, shuffle=shuffle_state, drop_last=False)
+
+    return val_loader
+
+
+
+def test_dataloader_genes_knockout(args, val_dataset, log=False, shuffle_state=False, knockout_gene_list=[]):
+    SPL_FILE = val_dataset
+    batch_size = args.batch_size
+
+    need_col_num = args.gene_num
+    label_str = args.label_str
+
+    gene_list = pd.DataFrame(index=args.HVG_list + label_str)
+
+    if SPL_FILE.endswith('.parquet'):
+        raw_df = pd.read_parquet(SPL_FILE)
+    elif SPL_FILE.endswith('.csv'):
+        raw_df = pd.read_csv(SPL_FILE, index_col=0)
+    else:
+        print('Error: Unsupported file format.')
+        sys.exit(1)
+
+    print(raw_df.shape)
+    if 'label' not in raw_df.index:
+        raw_df = raw_df.T
+
+    if 'label' not in raw_df.index:
+        print("Error: 'label' column is missing. Exiting program.")
+        sys.exit(1)
+
+    raw_data = raw_df[:-1].fillna(0)
+    cell_name = raw_df.columns
+    Y = raw_df.loc['label'].copy().to_numpy()
+    print(raw_df.loc['label'].value_counts())
+
+    if log:
+        adata = anndata.AnnData(X=raw_data.T)
+        sc.pp.normalize_total(adata, target_sum=1e4)
+        sc.pp.log1p(adata)
+        log_df = pd.DataFrame(adata.X.T, index=raw_data.index, columns=raw_data.columns)
+    else:
+        log_df = raw_data
+
+    merge_df = pd.merge(gene_list, log_df, how='left', left_index=True, right_index=True).fillna(0)
+    merge_df = merge_df[~merge_df.index.duplicated()]
+    merge_df = merge_df.loc[gene_list.index]
+    merge_df = merge_df.T
+    # print(f"Knocking out gene: {knockout_gene_list}")
+    for gene in knockout_gene_list:
+        if gene in args.HVG_list:
+            shuffled_values = merge_df[gene].values.copy()
+            np.random.shuffle(shuffled_values)
+            merge_df[gene] = shuffled_values
+        else:
+            print(f" Warning: Gene '{gene}' not found in feature list. Skipping.")
+
+
+    X = merge_df.iloc[:, :need_col_num].to_numpy()
+
+    Y_tissue = merge_df.loc[:, 'tissue_label'].copy().to_numpy()
+    Y_cancer_type = merge_df.loc[:, 'cancer_label'].copy().to_numpy()
+
+    val_set = myDataset(X,Y,Y_tissue,Y_cancer_type, cell_name)
+    val_loader = DataLoader(dataset=val_set, batch_size=batch_size, shuffle=shuffle_state, drop_last=False)
+
+    return val_loader
+
+
+
+
+def test_dataloader_genes_knockout_random(args, val_dataset, log=False, shuffle_state=False, knockout_number=100):
+    SPL_FILE = val_dataset
+    batch_size = args.batch_size
+
+    need_col_num = args.gene_num
+    label_str = args.label_str
+
+    gene_list = pd.DataFrame(index=args.HVG_list + label_str)
+
+    if SPL_FILE.endswith('.parquet'):
+        raw_df = pd.read_parquet(SPL_FILE)
+    elif SPL_FILE.endswith('.csv'):
+        raw_df = pd.read_csv(SPL_FILE, index_col=0)
+    else:
+        print('Error: Unsupported file format.')
+        sys.exit(1)
+
+    print(raw_df.shape)
+    if 'label' not in raw_df.index:
+        raw_df = raw_df.T
+
+    if 'label' not in raw_df.index:
+        print("Error: 'label' column is missing. Exiting program.")
+        sys.exit(1)
+
+    raw_data = raw_df[:-1].fillna(0)
+    cell_name = raw_df.columns
+    Y = raw_df.loc['label'].copy().to_numpy()
+    print(raw_df.loc['label'].value_counts())
+
+    if log:
+        adata = anndata.AnnData(X=raw_data.T)
+        sc.pp.normalize_total(adata, target_sum=1e4)
+        sc.pp.log1p(adata)
+        log_df = pd.DataFrame(adata.X.T, index=raw_data.index, columns=raw_data.columns)
+    else:
+        log_df = raw_data
+
+    merge_df = pd.merge(gene_list, log_df, how='left', left_index=True, right_index=True).fillna(0)
+    merge_df = merge_df[~merge_df.index.duplicated()]
+    merge_df = merge_df.loc[gene_list.index]
+    merge_df = merge_df.T
+
+    knockout_genes = random.sample(args.HVG_list, knockout_number)
+    # print(f"Randomly knocking out {knockout_number} genes: {knockout_genes}")
+
+    for gene in knockout_genes:
+        if gene in args.HVG_list:
+            shuffled_values = merge_df[gene].values.copy()
+            np.random.shuffle(shuffled_values)
+            merge_df[gene] = shuffled_values
+        else:
+            print(f" Warning: Gene '{gene}' not found in feature list. Skipping.")
+
+
+    X = merge_df.iloc[:, :need_col_num].to_numpy()
+
+    Y_tissue = merge_df.loc[:, 'tissue_label'].copy().to_numpy()
+    Y_cancer_type = merge_df.loc[:, 'cancer_label'].copy().to_numpy()
+
+    val_set = myDataset(X,Y,Y_tissue,Y_cancer_type, cell_name)
+    val_loader = DataLoader(dataset=val_set, batch_size=batch_size, shuffle=shuffle_state, drop_last=False)
+
+    return val_loader
