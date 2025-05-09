@@ -19,7 +19,7 @@ pip install -r requirements.txt
 
 ## Run 
 ### Data preparation
-The training, validation, and testing datasets processed in this study are available for download from [Google Drive](https://drive.google.com/file/d/1FOCUK-iSBqKrdLF5-T06NDLVGWbNVcet/view?usp=drive_link)
+The training, validation, and testing datasets processed in this study are available for download from [Google Drive](https://drive.google.com/file/d/1phVCEXbi0Azl3NGj273aemEXp2E0tZWH/view?usp=drive_link)
 
 To test CanCellCap, place parquet files in the *data* directory.
 ### Ckpt download
