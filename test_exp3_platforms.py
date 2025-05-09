@@ -86,10 +86,10 @@ def plot_multiple_roc(loader, dataset_name=""):
             all_binary_preds = df['pred']
             # Calculate accuracy and F1 score
             acc = accuracy_score(all_labels, all_binary_preds)
-            f1 = f1_score(all_labels, all_binary_preds, average='weighted')
-            precision = precision_score(all_labels, all_binary_preds, average='weighted')
-            pre_index = all_binary_preds != 2
-            recall = recall_score(all_labels[pre_index], all_binary_preds[pre_index])#, average='weighted')
+            all_binary_preds_adj = np.where(all_binary_preds == 2, 1 - all_labels, all_binary_preds)
+            recall = recall_score(all_labels, all_binary_preds_adj)
+            f1 = f1_score(all_labels, all_binary_preds_adj)
+            precision = precision_score(all_labels, all_binary_preds_adj)
             # Calculate ROC curve
             if name not in non_roc_model:
                 fpr, tpr, _ = roc_curve(all_labels, y_scores, pos_label=1)
@@ -130,9 +130,9 @@ def plot_multiple_roc(loader, dataset_name=""):
 
             # Calculate evaluation metrics
             acc = accuracy_score(all_labels, all_binary_preds)
-            f1 = f1_score(all_labels, all_binary_preds, average='weighted')
-            precision = precision_score(all_labels, all_binary_preds, average='weighted')
-            recall = recall_score(all_labels, all_binary_preds)#, average='weighted')
+            f1 = f1_score(all_labels, all_binary_preds)
+            precision = precision_score(all_labels, all_binary_preds)
+            recall = recall_score(all_labels, all_binary_preds)
 
             # Calculate ROC curve and AUC for the current model
             fpr, tpr, _ = roc_curve(all_labels, [pred[1] for pred in all_preds], pos_label=1)

@@ -1,29 +1,30 @@
 
-from admoe_git.models import CanCellCap
 import torch
 import pandas as pd 
-from utils import opt_utils,args_utils 
+from models import CanCellCap
+from models import Cancer_Finder_model
+from utils import args_utils 
 import glob
 import os
-from admoe_git.data_loaders import dataloader as domian_loaders
+from data_loaders import dataloader
 import matplotlib.pyplot as plt
 from TISCH import *
-
 import torch
 from sklearn.metrics import f1_score, roc_curve, auc, accuracy_score, precision_score, recall_score
-import matplotlib.pyplot as plt
+import numpy as np
+plt.rcParams['pdf.fonttype'] = 42
+plt.rcParams['font.family'] = 'Times New Roman'
 
 args = args_utils.infer_args()
 
-args.ckp = os.path.join(args.output, 'my_model.pt')
-
+args.ckp = os.path.join(args.checkpoint, 'my_model.pt')
 args.HVG_list = torch.load(args.ckp)['HVG_list']
 args.gene_num = len(args.HVG_list)
 args_utils.set_random_seed(args.seed)
 args.label_str = ['label', 'tissue_label', 'cancer_label']
-args.val_dir = './data/exp2_unseen/'
-SPL_PATH = args.val_dir
-# data_spl_files = [os.path.join(SPL_PATH,"Bond.csv")]
+
+SPL_PATH = "/root/cancer_data/unknown_cancer_type"
+
 data_spl_files = []
 if data_spl_files==[]:
     data_spl_files = glob.glob(os.path.join(SPL_PATH,'*.parquet'))
@@ -41,6 +42,16 @@ def CanCell_Cap():
     CanCell_Cap.eval()
     return CanCell_Cap
 
+def Cancer_Finder():
+    algorithm = Cancer_Finder_model.VREx(args)
+    algorithm.load_state_dict(torch.load('/root/ori/new_trainset/my_model.pt')['model_dict'])
+    algorithm.cuda()
+    algorithm.eval()
+    return algorithm
+
+
+cancell_cap_model = CanCell_Cap()
+Cancer_Finder_model=Cancer_Finder()
 
 def plot_multiple_roc(loader, dataset_name=""):
     """
@@ -50,22 +61,20 @@ def plot_multiple_roc(loader, dataset_name=""):
         models (list): List of models to evaluate.
         loader: DataLoader for the dataset.
     """
+    results_df = pd.DataFrame()
     plt.figure(figsize=(10, 8))
-    cancell_cap_model = CanCell_Cap()
-
-    models = {'CanCell_Cap':cancell_cap_model, 'Cancer_Finder':'cancer_finder_model', 'PreCanCell':'precancell','SCEVAN':'SCEVAN','CopyKAT':'CopyKAT', 'ikarus':'ikarus'}
-    pre_result_model = ['PreCanCell','SCEVAN','CopyKAT','ikarus', 'Cancer_Finder', 'pure_classifier']
+    models = {'CanCell_Cap':cancell_cap_model, 'Cancer_Finder':Cancer_Finder_model, 'PreCanCell':'precancell','SCEVAN':'SCEVAN','CopyKAT':'CopyKAT', 'ikarus':'ikarus'}
+    pre_result_model = ['CanCell_Cap', 'Cancer_Finder','PreCanCell','SCEVAN','CopyKAT','ikarus']
     non_roc_model = ['SCEVAN','CopyKAT']
-    results_df = pd.DataFrame(columns=['Dataset', 'Model', 'Accuracy', 'Recall', 'F1 Score', 'Precision', 'AUC'])
-
     for name in models.keys():
         results_file = f'{results_path}{dataset_name}_{name}_result.csv'
         if name in pre_result_model:
-            if not os.path.exists(results_file):                                                                                                                                                                                                                                                      
+            # Sample data
+            if not os.path.exists(results_file):
                 print(f'{results_file} is not exist.')
                 continue
 
-            df = pd.read_csv(results_file)
+            df = pd.read_csv(results_file, index_col=0)
 
             try:
                 all_labels = df['label']
@@ -74,14 +83,13 @@ def plot_multiple_roc(loader, dataset_name=""):
                 df.rename(columns={'labels': 'label'}, inplace=True)
                 df.to_csv(results_file)
             y_scores = df['freq_cancer']
-            all_binary_preds = df['pred']
-            # Calculate accuracy and F1 score
+            all_binary_preds = df['pred'].fillna(2).astype(int)
             acc = accuracy_score(all_labels, all_binary_preds)
-            f1 = f1_score(all_labels, all_binary_preds, average='weighted')
-            precision = precision_score(all_labels, all_binary_preds, average='weighted')
-            pre_index = all_binary_preds != 2
-            recall = recall_score(all_labels[pre_index], all_binary_preds[pre_index])#, average='weighted')
-            # Calculate ROC curve
+            all_binary_preds_adj = np.where(all_binary_preds == 2, 1 - all_labels, all_binary_preds)
+            recall = recall_score(all_labels, all_binary_preds_adj)
+            f1 = f1_score(all_labels, all_binary_preds_adj)
+            precision = precision_score(all_labels, all_binary_preds_adj)
+
             if name not in non_roc_model:
                 fpr, tpr, _ = roc_curve(all_labels, y_scores, pos_label=1)
                 roc_auc = auc(fpr, tpr)
@@ -90,6 +98,7 @@ def plot_multiple_roc(loader, dataset_name=""):
                 plt.plot(fpr, tpr, label=f"{name} (AUC = {roc_auc:.4f})")
             else:
                 print(f"{name} - Accuracy: {acc:.4f}, recall: {recall:.4f}, F1 Score: {f1:.4f}, Precision: {precision:.4f}, AUC: nan,")
+
 
         else:
             all_labels = []
@@ -100,7 +109,6 @@ def plot_multiple_roc(loader, dataset_name=""):
 
                     x = data[0].cuda().float()
                     y = data[1].cuda().long()
-
                     logit = models[name].infer(x)
                     # Collect predictions and labels
                     all_labels.extend(y.cpu().numpy())
@@ -116,14 +124,15 @@ def plot_multiple_roc(loader, dataset_name=""):
 
             # Create DataFrame
             df = pd.DataFrame(rows, columns=['', 'freq_cancer', 'freq_non_cancer', 'pred_label', 'pred', 'label'])
+
             # Save to CSV
-            df.to_csv(results_file, index=False)
+            df.to_csv(f"{results_path}{dataset_name}_{name}_result.csv", index=False)
 
             # Calculate evaluation metrics
             acc = accuracy_score(all_labels, all_binary_preds)
-            f1 = f1_score(all_labels, all_binary_preds, average='weighted')
-            precision = precision_score(all_labels, all_binary_preds, average='weighted')
-            recall = recall_score(all_labels, all_binary_preds)#, average='weighted')
+            f1 = f1_score(all_labels, all_binary_preds)
+            precision = precision_score(all_labels, all_binary_preds)
+            recall = recall_score(all_labels, all_binary_preds)
 
             # Calculate ROC curve and AUC for the current model
             fpr, tpr, _ = roc_curve(all_labels, [pred[1] for pred in all_preds], pos_label=1)
@@ -132,7 +141,6 @@ def plot_multiple_roc(loader, dataset_name=""):
             print(f"{name} - Accuracy: {acc:.4f}, recall: {recall:.4f}, F1 Score: {f1:.4f}, Precision: {precision:.4f}, AUC: {roc_auc:.4f},")
             # Plot the ROC curve for the current model
             plt.plot(fpr, tpr, label=f"{name} (AUC = {roc_auc:.4f})")
-
         new_row = pd.DataFrame([{
             'Dataset': dataset_name,
             'Model': name,
@@ -142,7 +150,9 @@ def plot_multiple_roc(loader, dataset_name=""):
             'Precision': precision,
             'AUC': roc_auc
         }])
+
         results_df = pd.concat([results_df, new_row], ignore_index=True)
+
     # Plot the random classifier line
     plt.plot([0, 1], [0, 1], 'k--', label="Random Classifier")
 
@@ -154,18 +164,16 @@ def plot_multiple_roc(loader, dataset_name=""):
     plt.grid(True)
     plt.show()
     plt.savefig(f'./results/fig/exp2_unseen_roc_{dataset_name}.pdf')
-    plt.close()
     return results_df
-
 
 results_dfs = []
 for data_spl_file in sorted(data_spl_files):
     print(f'test {data_spl_file}')
-    val_loader = domian_loaders.val_domian_loader_exp2(args,data_spl_file)
+    val_loader = dataloader.test_dataloader(args,data_spl_file,log=True)
     for idx,loader_idx in enumerate(val_loader):
         results_df = plot_multiple_roc(val_loader[loader_idx], loader_idx)
         results_dfs.append(results_df)
 
-
 results = pd.concat(results_dfs, ignore_index=True)
 results.to_csv(f'./results/exp2_unseen_results.csv', index=False)
+

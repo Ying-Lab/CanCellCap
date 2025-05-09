@@ -1,0 +1,10 @@
+scp -P 6475 root@172.27.127.170:/root/cancer_data/full_count/*_result.csv ./exp1/
+scp -P 6475 root@172.27.127.177:/root/cancer_data/full_count/*_result.csv ./exp1/
+scp -P 6475 root@172.27.127.170:/root/cancer_data/exp1_dataset2/data/*_result.csv ./exp1_dataset2/
+scp -P 6475 root@172.27.127.177:/root/cancer_data/exp1_dataset2/data/*_result.csv ./exp1_dataset2/
+scp -P 6475 root@172.27.127.170:/root/cancer_data/split_by_patient_matrices/*_result.csv ./exp2/
+scp -P 6475 root@172.27.127.177:/root/cancer_data/split_by_patient_matrices/*_result.csv ./exp2/
+scp -P 6475 root@172.27.127.170:/root/cancer_data/unknown_cancer_type/*_result.csv ./exp3/
+scp -P 6475 root@172.27.127.177:/root/cancer_data/unknown_cancer_type/*_result.csv ./exp3/
+scp -P 6475 root@172.27.127.170:/root/cancer_data/platform/*_result.csv ./exp4/
+scp -P 6475 root@172.27.127.177:/root/cancer_data/platform/*_result.csv ./exp4/

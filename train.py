@@ -10,8 +10,10 @@ from TISCH import *
 
 args = args_utils.get_args()
 os.makedirs(args.checkpoint,exist_ok=True)
+
 args.num_tissue = len(TISCH1_tissue_map.keys())
 args.num_cancer_type = len(TISCH1_cancer_type_map.keys())
+
 args.label_str = ['label', 'tissue_label', 'cancer_label']
 print(args)
 os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu_id)

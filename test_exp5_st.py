@@ -1,12 +1,12 @@
 # %%
 import torch
 import pandas as pd 
-from admoe_git.models import CanCellCap
+from models import CanCellCap
 from utils import opt_utils,args_utils 
 
 import glob
 import os
-from admoe_git.data_loaders import dataloader as domian_loaders
+from data_loaders import dataloader as domian_loaders
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -83,9 +83,9 @@ def plot_multiple_roc(loader, dataset_name="", cell_names=""):
 
         # Calculate evaluation metrics
         acc = accuracy_score(all_labels, all_binary_preds)
-        f1 = f1_score(all_labels, all_binary_preds, average='weighted')
-        precision = precision_score(all_labels, all_binary_preds, average='weighted')
-        recall = recall_score(all_labels, all_binary_preds)#, average='weighted')
+        f1 = f1_score(all_labels, all_binary_preds)
+        precision = precision_score(all_labels, all_binary_preds)
+        recall = recall_score(all_labels, all_binary_preds)#)
 
         # Calculate ROC curve and AUC for the current model
         fpr, tpr, _ = roc_curve(all_labels, [pred[1] for pred in all_preds], pos_label=1)

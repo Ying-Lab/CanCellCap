@@ -69,8 +69,8 @@ def plot_multiple_roc(loader, dataset_name=""):
     df.to_csv(f"{results_path}{dataset_name}_CanCellCap_result.csv", index=False)
 
     acc = accuracy_score(all_labels, all_binary_preds)
-    f1 = f1_score(all_labels, all_binary_preds, average='weighted')
-    precision = precision_score(all_labels, all_binary_preds, average='weighted')
+    f1 = f1_score(all_labels, all_binary_preds)
+    precision = precision_score(all_labels, all_binary_preds)
     recall = recall_score(all_labels, all_binary_preds)
 
     fpr, tpr, _ = roc_curve(all_labels, [pred[1] for pred in all_preds], pos_label=1)
