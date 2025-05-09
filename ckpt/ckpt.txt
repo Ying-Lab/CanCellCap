@@ -1,0 +1,1 @@
+After downloading, extract the compressed file and place my_model.pt into the ckpt directory.
