@@ -147,6 +147,23 @@ class myDataset(Dataset):
             self.cellnames[idx]
         )
 
+
+class Dataset_infer(Dataset):
+    def __init__(self, X, cellnames):
+        self.X = torch.from_numpy(X).float()
+        self.cellnames = cellnames  # list of str
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, idx):
+        return (
+            self.X[idx],
+            self.cellnames[idx]
+        )
+
+
+
 def test_dataloader(args, val_dataset, log=False, shuffle_state=False):
     SPL_FILE = val_dataset
     batch_size = args.batch_size
@@ -250,6 +267,84 @@ def test_dataloader_mpd(args, val_dataset, log=False, shuffle_state=False):
 
     return val_loader
 
+
+def infer_dataloader(args, infer_dataset, log=False, shuffle_state=False):
+    SPL_FILE = infer_dataset
+    batch_size = args.batch_size
+
+    need_col_num=args.gene_num
+
+    gene_list = pd.DataFrame(index=args.HVG_list)
+
+    if SPL_FILE.endswith('.parquet'):
+        raw_df = pd.read_parquet(SPL_FILE) 
+    elif SPL_FILE.endswith('.csv'):
+        raw_df = pd.read_csv(SPL_FILE,index_col=0)
+    else:
+        print('Error file format.')
+
+    raw_data = raw_df
+    cell_name = raw_df.columns
+    print(raw_df.shape)
+    
+    if log:
+        adata = anndata.AnnData(X=raw_data.T)
+        sc.pp.normalize_total(adata, target_sum=1e4)
+        sc.pp.log1p(adata)
+        log_df = pd.DataFrame(adata.X.T, index=raw_data.index, columns=raw_data.columns)
+    else:
+        log_df = raw_data
+
+    merge_df = pd.merge(gene_list,log_df,how='left',left_index=True,right_index=True).fillna(0)
+    merge_df = merge_df[~merge_df.index.duplicated()]
+    merge_df = merge_df.loc[gene_list.index]
+    merge_df = merge_df.T
+    print(merge_df.shape)
+    X = merge_df.iloc[:,:need_col_num].to_numpy()
+    infer_set = Dataset_infer(X, cell_name)
+    infer_loader = DataLoader(dataset=infer_set,batch_size = batch_size,shuffle=shuffle_state,drop_last=False)
+
+    return infer_loader
+
+
+def infer_dataloader_mpd(args, infer_dataset, log=False, shuffle_state=False):
+    SPL_FILE = infer_dataset
+    batch_size = args.batch_size
+
+    need_col_num=args.gene_num
+
+    gene_list = mpd.DataFrame(index=args.HVG_list)
+
+    if SPL_FILE.endswith('.parquet'):
+        raw_df = mpd.read_parquet(SPL_FILE) 
+    elif SPL_FILE.endswith('.csv'):
+        raw_df = mpd.read_csv(SPL_FILE,index_col=0)
+    else:
+        print('Error file format.')
+        
+    print(raw_df.shape)
+
+    raw_data = raw_df
+    cell_name = raw_df.columns
+    
+    if log:
+        adata = anndata.AnnData(X=raw_data.T)
+        sc.pp.normalize_total(adata, target_sum=1e4)
+        sc.pp.log1p(adata)
+        log_df = mpd.DataFrame(adata.X.T, index=raw_data.index, columns=raw_data.columns)
+    else:
+        log_df = raw_data
+
+    merge_df = mpd.merge(gene_list,log_df,how='left',left_index=True,right_index=True).fillna(0)
+    merge_df = merge_df[~merge_df.index.duplicated()]
+    merge_df = merge_df.loc[gene_list.index]
+    merge_df = merge_df.T
+
+    X = merge_df.iloc[:,:need_col_num].to_numpy()
+    infer_set = Dataset_infer(X, cell_name)
+    infer_loader = DataLoader(dataset=infer_set,batch_size = batch_size,shuffle=shuffle_state,drop_last=False)
+
+    return infer_loader
 
 
 def test_dataloader_gene_knockout(args, val_dataset, log=False, shuffle_state=False, knockout_gene=""):

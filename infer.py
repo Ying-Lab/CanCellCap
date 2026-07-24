@@ -20,7 +20,6 @@ args.ckp = os.path.join(args.checkpoint, 'my_model.pt')
 args.HVG_list = torch.load(args.ckp)['HVG_list']
 args.gene_num = len(args.HVG_list)
 args_utils.set_random_seed(args.seed)
-args.label_str = ['label', 'tissue_label', 'cancer_label']
 os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu_id)
 
 data_spl_file = args.test_file
@@ -39,9 +38,9 @@ def CanCell_Cap():
 
 print(f'test {data_spl_file}')
 if args.modin:
-    test_loader = dataloader.test_dataloader_mpb(args,data_spl_file)
+    test_loader = dataloader.infer_dataloader_mpb(args,data_spl_file)
 else:
-    test_loader = dataloader.test_dataloader(args,data_spl_file)
+    test_loader = dataloader.infer_dataloader(args,data_spl_file)
 
 
 cancell_cap_model = CanCell_Cap()
@@ -52,7 +51,7 @@ with torch.no_grad():
     for data in test_loader:
         x = data[0].cuda().float()
         logit = cancell_cap_model.infer(x)
-        cell_names.extend(data[4])
+        cell_names.extend(data[1])
         pred_pros.extend(logit.softmax(1).cpu().numpy()) 
         pred_labels.extend(logit.argmax(1).cpu().numpy())
 rows = []
