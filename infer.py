@@ -38,7 +38,7 @@ def CanCell_Cap():
 
 print(f'test {data_spl_file}')
 if args.modin:
-    test_loader = dataloader.infer_dataloader_mpb(args,data_spl_file)
+    test_loader = dataloader.infer_dataloader_mpd(args,data_spl_file)
 else:
     test_loader = dataloader.infer_dataloader(args,data_spl_file)
 
